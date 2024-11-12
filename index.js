@@ -1,7 +1,8 @@
 import { index } from "./pages/index.js"
+import { demo } from "./pages/demo.js"
 
 let config = {
-    fontSize: '32px'
+    fontSize: '30px'
 }
 
 let body = document.body
@@ -23,27 +24,57 @@ dummy.style.opacity = '0'
 dummy.style.position = 'absolute'
 dummy.style.top = '0px'
 dummy.style.pointerEvents = 'none'
-dummy.innerHTML = index
+dummy.innerHTML = demo
 document.body.append(dummy)
-window.onresize = resize
-window.onload = resize
-resize()
 
-function draw(dom) {
-    [...dom.children].forEach(ch => {
-        draw(ch)
-        switch (ch.className) {
-            case 'group': drawGroup(ch); break;
-            case 'label': drawLabel(ch); break;
-            case 'image': drawImage(ch); break;
+let rc
+loadResource(['bunny.png']).then(r => {
+    rc = r
+    window.onresize = resize
+    window.onload = resize
+    resize()
+})
+
+function loadResource(imgList, rc) {
+    rc = rc || {}
+    return new Promise(resolve => {
+        let image = new Image
+        image.onload = () => {
+            image.onload = null
+            rc[image.src.split(location.href)[1]] = image
+            if (imgList.length) loadResource(imgList[0])
+            else resolve(rc)
         }
+        image.src = imgList.shift()
     })
 }
 
+function draw(dom) {
+    switch (dom.className) {
+        case 'group': drawGroup(dom); break;
+        case 'label': drawLabel(dom); break;
+        case 'image': drawImage(dom); break;
+    }
+    [...dom.children].forEach(ch => draw(ch))
+}
+
 function drawGroup(ele) {
-    ele.style.display = 'flex'
+    ele.style.display = ele.getAttribute('display') || 'flex'
     ele.style.flexWrap = 'wrap'
+    ele.style.maxWidth = window.innerWidth + 'px'
+    ele.style.flexFlow = ele.getAttribute('flow') || 'row'
     ele.style.justifyContent = ele.getAttribute('justifyContent') || 'flex-start';
+    let box = ele.getBoundingClientRect()
+    let pbox = ele.parent?.getBoundingClientRect()
+    box.x = ele.parent ? (box.x - pbox.x) : box.x
+    box.y = ele.parent ? (box.y - pbox.y) : box.y
+    let bgc = ele.getAttribute('bgColor')
+    if (bgc) {
+        appCtx.fillStyle = bgc
+        appCtx.fillRect(box.x, box.y, box.width, box.height)
+    }
+    let src = ele.getAttribute('bgImage')
+    src && appCtx.drawImage(rc[src], box.x, box.y, box.width, box.height)
 }
 
 function drawLabel(ele) {
@@ -52,6 +83,9 @@ function drawLabel(ele) {
     box.x = ele.parent ? (box.x - pbox.x) : box.x
     box.y = ele.parent ? (box.y - pbox.y) : box.y
     appCtx.font = config.fontSize + ' serif';
+    const size = ele.getAttribute('size')
+    size && (appCtx.font = size + 'px serif')
+    ele.style.fontSize = size + 'px'
     appCtx.fillStyle = ele.getAttribute('color') || 'black';
     appCtx.fillText(
         ele.innerText,
@@ -61,27 +95,18 @@ function drawLabel(ele) {
 }
 
 function drawImage(ele) {
+    ele.style.display = 'inline-block'
     let box = ele.getBoundingClientRect()
     let pbox = ele.parent?.getBoundingClientRect()
     box.x = ele.parent ? (box.x - pbox.x) : box.x
     box.y = ele.parent ? (box.y - pbox.y) : box.y
     let src = ele.getAttribute('src')
-    let w = ele.getAttribute('width')
-    let h = ele.getAttribute('height')
-    // ele.style.backgroundImage = `url(${src})`;
+    let w = ele.getAttribute('width') || box.width
+    let h = ele.getAttribute('height') || box.height
     ele.style.width = w + 'px'
     ele.style.height = h + 'px'
     ele.style.backgroundSize = '100% 100%'
-    if (!ele.image) {
-        ele.image = new Image
-        ele.image.onload = () => {
-            ele.image.onload = null
-            appCtx.drawImage(ele.image, box.x, box.y, parseInt(w), parseInt(h))
-        }
-        ele.image.src = src
-    } else {
-        appCtx.drawImage(ele.image, box.x, box.y, parseInt(w), parseInt(h))
-    }
+    src && appCtx.drawImage(rc[src], box.x, box.y, box.width, box.height)
 }
 
 function resize() {
