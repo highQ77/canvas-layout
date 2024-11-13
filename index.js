@@ -1,32 +1,36 @@
 import { index } from "./pages/index.js"
-import { demo } from "./pages/demo.js"
 
 let config = {
-    fontSize: '30px'
+    fontSize: '30px',
+    fontFamily: 'Arial',
+    lineHeight: '1em',
 }
 
 let body = document.body
 body.style.margin = '0px'
 body.style.backgroundColor = "#CCC"
 body.style.fontSize = config.fontSize
+body.style.fontFamily = config.fontFamily
+body.style.lineHeight = config.lineHeight
 
 let app = document.getElementById('app')
 app.style.position = 'absolute'
 app.style.top = '0px'
-
 let appCtx = app.getContext('2d')
+
 let dummy = document.createElement('div')
 dummy.style.position = 'absolute'
 dummy.style.width = app.width + 'px'
 dummy.style.height = app.height + 'px'
 dummy.style.backgroundColor = 'white'
-dummy.style.opacity = '0'
-dummy.style.position = 'absolute'
+dummy.style.opacity = '.0'
 dummy.style.top = '0px'
-dummy.style.pointerEvents = 'none'
-dummy.innerHTML = demo
+dummy.style.zIndex = 1
+dummy.style.pointerEvents = 'nonse'
+dummy.innerHTML = index // init page here
 document.body.append(dummy)
 
+// load assets first
 let rc
 loadResource(['bunny.png']).then(r => {
     rc = r
@@ -50,6 +54,9 @@ function loadResource(imgList, rc) {
 }
 
 function draw(dom) {
+    dom.getAttributeNames().forEach(attr => {
+        dom.style[getAttr(attr)] = dom.getAttribute(attr)
+    })
     switch (dom.className) {
         case 'group': drawGroup(dom); break;
         case 'label': drawLabel(dom); break;
@@ -58,53 +65,57 @@ function draw(dom) {
     [...dom.children].forEach(ch => draw(ch))
 }
 
+function getBox(ele) {
+    return ele.getBoundingClientRect()
+}
+
+function getAttr(str) {
+    let idx = str.indexOf('_')
+    if (idx > -1) {
+        str = str.replace('_' + str[idx + 1], str[idx + 1].toUpperCase())
+    }
+    return str
+}
+
 function drawGroup(ele) {
-    ele.style.display = ele.getAttribute('display') || 'flex'
-    ele.style.flexWrap = 'wrap'
-    ele.style.maxWidth = window.innerWidth + 'px'
-    ele.style.flexFlow = ele.getAttribute('flow') || 'row'
-    ele.style.justifyContent = ele.getAttribute('justifyContent') || 'flex-start';
-    let box = ele.getBoundingClientRect()
-    let pbox = ele.parent?.getBoundingClientRect()
-    box.x = ele.parent ? (box.x - pbox.x) : box.x
-    box.y = ele.parent ? (box.y - pbox.y) : box.y
-    let bgc = ele.getAttribute('bgColor')
+    ele.style.display = ele.getAttribute('display') || 'block'
+    let box = getBox(ele)
+    let bgc = ele.getAttribute('background_color')
     if (bgc) {
         appCtx.fillStyle = bgc
         appCtx.fillRect(box.x, box.y, box.width, box.height)
     }
-    let src = ele.getAttribute('bgImage')
+    let src = ele.getAttribute('background_image')
     src && appCtx.drawImage(rc[src], box.x, box.y, box.width, box.height)
 }
 
 function drawLabel(ele) {
-    let box = ele.getBoundingClientRect()
-    let pbox = ele.parent?.getBoundingClientRect()
-    box.x = ele.parent ? (box.x - pbox.x) : box.x
-    box.y = ele.parent ? (box.y - pbox.y) : box.y
-    appCtx.font = config.fontSize + ' serif';
-    const size = ele.getAttribute('size')
-    size && (appCtx.font = size + 'px serif')
-    ele.style.fontSize = size + 'px'
+    let box = getBox(ele)
+    appCtx.font = config.fontSize + ' ' + config.fontFamily
+    const fs = ele.style.height = ele.style.lineHeight = ele.getAttribute('font_size') || config.fontSize
+    const ff = ele.getAttribute('font_family')
+    appCtx.font = `${fs || config.fontSize} ${ff || config.fontFamily}`
     appCtx.fillStyle = ele.getAttribute('color') || 'black';
-    appCtx.fillText(
-        ele.innerText,
-        box.x,
-        box.y + appCtx.measureText(ele.innerText).fontBoundingBoxAscent
-    );
+    let lines = getLines(appCtx, ele.innerText, appCtx.canvas.width)
+    let mt = appCtx.measureText(ele.innerText)
+    let lineHeight = parseFloat(ele.style.lineHeight)
+    lines.forEach((line, idx) => {
+        appCtx.fillText(
+            line,
+            box.x,
+            box.y + mt.fontBoundingBoxAscent + idx * lineHeight
+        );
+    })
 }
 
 function drawImage(ele) {
     ele.style.display = 'inline-block'
-    let box = ele.getBoundingClientRect()
-    let pbox = ele.parent?.getBoundingClientRect()
-    box.x = ele.parent ? (box.x - pbox.x) : box.x
-    box.y = ele.parent ? (box.y - pbox.y) : box.y
+    let box = getBox(ele)
     let src = ele.getAttribute('src')
     let w = ele.getAttribute('width') || box.width
     let h = ele.getAttribute('height') || box.height
-    ele.style.width = w + 'px'
-    ele.style.height = h + 'px'
+    ele.style.width = w
+    ele.style.height = h
     ele.style.backgroundSize = '100% 100%'
     src && appCtx.drawImage(rc[src], box.x, box.y, box.width, box.height)
 }
@@ -116,3 +127,23 @@ function resize() {
     dummy.style.height = app.height + 'px'
     draw(dummy)
 }
+
+function getLines(ctx, text, maxWidth) {
+    var words = text.split(" ");
+    var lines = [];
+    var currentLine = words[0];
+    for (var i = 1; i < words.length; i++) {
+        var word = words[i];
+        var width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+    return lines;
+}
+
+
